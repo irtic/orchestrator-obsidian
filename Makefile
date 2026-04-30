@@ -1,4 +1,4 @@
-.PHONY: validate vault-validate chg-new handoff-open handoff-close chg-consolidate
+.PHONY: validate vault-validate chg-new handoff-open handoff-close chg-consolidate coordinator
 
 validate:
 	bash scripts/validate-structure.sh
@@ -17,3 +17,6 @@ handoff-close:
 
 chg-consolidate:
 	@printf "Uso: bash scripts/chg-consolidate.sh <change-id>\n"
+
+coordinator:
+	@printf "Uso: bash scripts/workstream-coordinator.sh /change-new|/work-open|/work-close|/change-sync|/change-status|/check-vault ...\n"
