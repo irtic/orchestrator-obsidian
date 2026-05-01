@@ -41,6 +41,92 @@ resolve_change_dir() {
   return 1
 }
 
+infer_workstream_for_change() {
+  local change_dir="$1"
+  python3 - <<'PY' "$change_dir"
+from pathlib import Path
+import sys, re
+
+change_dir = Path(sys.argv[1])
+notes = sorted(change_dir.glob('CHG-*.WS-*.md'))
+
+active_candidates = []
+pending_candidates = []
+all_candidates = []
+for note in notes:
+    text = note.read_text()
+    workstream = note.stem.split('.', 1)[1]
+    match = re.search(r'^### Estado$\n([^\n]+)', text, re.M)
+    state = match.group(1).strip() if match else 'Pendiente'
+    all_candidates.append(workstream)
+    if state in {'En progreso', 'Parcial'}:
+        active_candidates.append(workstream)
+    if state == 'Pendiente':
+        pending_candidates.append(workstream)
+
+if len(active_candidates) == 1:
+    print(active_candidates[0])
+elif len(pending_candidates) == 1:
+    print(pending_candidates[0])
+elif len(all_candidates) == 1:
+    print(all_candidates[0])
+PY
+}
+
+render_change_status() {
+  local change_dir="$1"
+  python3 - <<'PY' "$change_dir"
+from pathlib import Path
+import sys, re
+
+change_dir = Path(sys.argv[1])
+masters = sorted([p for p in change_dir.glob('CHG-*-*.md') if '.WS-' not in p.name])
+if not masters:
+    raise SystemExit('No se encontró maestro del change')
+
+master = masters[0]
+text = master.read_text()
+
+def section(heading):
+    pattern = rf'^### {re.escape(heading)}$\n(.*?)(?=^### |\Z)'
+    match = re.search(pattern, text, re.M | re.S)
+    if not match:
+        return []
+    body = match.group(1).strip()
+    return [line.strip()[2:] for line in body.splitlines() if line.strip().startswith('- ')]
+
+rows = []
+for line in text.splitlines():
+    if line.startswith('| `WS-'):
+        cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
+        if len(cells) >= 4:
+            rows.append((cells[0].strip('`'), cells[2]))
+
+print('Estado: ok')
+print(f'Hecho: Estado actual de {master.stem}.')
+if rows:
+    print('Workstreams:')
+    for ws, state in rows:
+        print(f'- {ws}: {state}')
+
+risks = section('Riesgos abiertos')
+blockers = section('Dependencias abiertas')
+if risks:
+    print('Warnings / riesgos:')
+    for item in risks:
+        print(f'- {item}')
+if blockers:
+    print('Dependencias abiertas:')
+    for item in blockers:
+        print(f'- {item}')
+
+pending = [ws for ws, state in rows if state != 'Completado']
+if pending:
+    print('Siguiente paso recomendado:')
+    print(f'- Abrir trabajo para {pending[0]} o consolidar más avances.')
+PY
+}
+
 human_summary() {
   python3 -c '
 import json, sys
@@ -116,9 +202,9 @@ case "$command" in
         printf 'No se encontró el change: %s\n' "$change_id" >&2
         exit 1
       fi
-      mapfile -t notes < <(find "$change_dir" -maxdepth 1 -type f -name 'CHG-*.WS-*.md' | sort)
-      if [[ ${#notes[@]} -eq 1 ]]; then
-        workstream_id="$(basename "${notes[0]}" .md | cut -d'.' -f2)"
+      inferred_ws="$(infer_workstream_for_change "$change_dir" || true)"
+      if [[ -n "$inferred_ws" ]]; then
+        workstream_id="$inferred_ws"
       else
         printf 'Debes indicar workstream porque hay múltiples notas hijas en %s\n' "$change_id" >&2
         exit 1
@@ -151,7 +237,11 @@ case "$command" in
       printf 'Uso: /change-status <CHG-id>\n' >&2
       exit 1
     fi
-    bash scripts/vault-validate.sh change "$1" | human_summary
+    if ! change_dir="$(resolve_change_dir "$1")"; then
+      printf 'No se encontró el change: %s\n' "$1" >&2
+      exit 1
+    fi
+    render_change_status "$change_dir"
     ;;
 
   /check-vault)
