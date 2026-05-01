@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "workstream-coordinator": {
+      "description": "Fachada conversacional del workstream vault. Coordina changes, handoffs, validación y consolidación con intención humana antes que sintaxis rígida.",
+      "mode": "primary",
+      "model": "github-copilot/gpt-5.4",
+      "prompt": "{file:./skills/workstream-coordinator/assets/agent-system-prompt.md}",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    }
+  }
+}

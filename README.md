@@ -97,6 +97,16 @@ bash scripts/chg-consolidate.sh CHG-040
 - `guides/GUIDE-coordinator-cookbook.md`
 - `guides/GUIDE-coordinator-agent.md`
 
+## OpenCode
+
+Este repo incluye un `opencode.json` local con el agente:
+
+- `workstream-coordinator`
+
+Su prompt base vive en:
+
+- `skills/workstream-coordinator/assets/agent-system-prompt.md`
+
 ## Carpetas
 - `systems/`
 - `workstreams/`
