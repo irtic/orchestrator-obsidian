@@ -28,6 +28,8 @@ Use this skill when:
 - Change master, ADRs, contracts, systems, guides, and templates are protected
 - Missing info -> `Pendiente`
 - Non-applicable section -> `No aplica`
+- When editing vault notes, use Obsidian-compatible Markdown with wikilinks for internal references
+- Do not let richer Obsidian syntax break templates, ownership, or allowed edit scopes
 
 ## Commands
 
@@ -44,3 +46,4 @@ Use this skill when:
 
 - **Documentation**: See [references/vault-model.md](references/vault-model.md)
 - **Prompt usage**: See [references/prompt-usage.md](references/prompt-usage.md)
+- **Obsidian writing**: See [../../guides/GUIDE-obsidian-writing.md](../../guides/GUIDE-obsidian-writing.md)
