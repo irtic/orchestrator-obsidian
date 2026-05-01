@@ -24,6 +24,8 @@ Aliases naturales:
 Atajos útiles:
   bash scripts/workstream-coordinator.sh CHG-031    # equivale a /change-status CHG-031
   bash scripts/workstream-coordinator.sh WS-web-app # equivale a /check-vault WS-web-app
+  bash scripts/workstream-coordinator.sh silent-session-renewal
+  bash scripts/workstream-coordinator.sh open CHG-031 validation
 EOF
   exit 1
 }
@@ -42,10 +44,20 @@ normalize_command() {
 }
 
 infer_command_from_target() {
-  case "$1" in
+  local target="$1"
+
+  case "$target" in
     CHG-*) printf '/change-status' ;;
     WS-*) printf '/check-vault' ;;
-    *) printf '%s' "$1" ;;
+    *)
+      if resolve_change_dir "$target" >/dev/null 2>&1; then
+        printf '/change-status'
+      elif resolve_workstream_id "$target" >/dev/null 2>&1; then
+        printf '/check-vault'
+      else
+        printf '%s' "$target"
+      fi
+      ;;
   esac
 }
 
@@ -67,7 +79,95 @@ resolve_change_dir() {
     return 0
   fi
 
+  matches=()
+  while IFS= read -r match; do
+    matches+=("$match")
+  done < <(find changes -maxdepth 1 -type d -name "CHG-*-${change_ref}" | sort)
+
+  if [[ ${#matches[@]} -eq 1 ]]; then
+    printf '%s\n' "${matches[0]}"
+    return 0
+  fi
+
+  matches=()
+  while IFS= read -r match; do
+    matches+=("$match")
+  done < <(find changes -maxdepth 1 -type d -name "*${change_ref}*" | sort)
+
+  if [[ ${#matches[@]} -eq 1 ]]; then
+    printf '%s\n' "${matches[0]}"
+    return 0
+  fi
+
   return 1
+}
+
+canonical_change_id() {
+  local change_dir="$1"
+  local base
+  base="${change_dir##*/}"
+  printf '%s\n' "$(printf '%s' "$base" | cut -d- -f1-2)"
+}
+
+resolve_workstream_id() {
+  local workstream_ref="$1"
+  local matches=()
+
+  if [[ -f "workstreams/${workstream_ref}.md" ]]; then
+    printf '%s\n' "$workstream_ref"
+    return 0
+  fi
+
+  if [[ -f "workstreams/WS-${workstream_ref}.md" ]]; then
+    printf 'WS-%s\n' "$workstream_ref"
+    return 0
+  fi
+
+  while IFS= read -r match; do
+    matches+=("${match##*/}")
+  done < <(find workstreams -maxdepth 1 -type f -name "WS-*${workstream_ref}*.md" | sort)
+
+  if [[ ${#matches[@]} -eq 1 ]]; then
+    printf '%s\n' "${matches[0]%.md}"
+    return 0
+  fi
+
+  return 1
+}
+
+normalize_mode() {
+  case "$1" in
+    implementation|impl|code|dev) printf 'implementation' ;;
+    closure|close|closing) printf 'closure' ;;
+    validation|validate|check|review) printf 'validation' ;;
+    documentation|docs|doc) printf 'documentation' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+is_mode() {
+  case "$(normalize_mode "$1")" in
+    implementation|closure|validation|documentation) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+normalize_state() {
+  case "$1" in
+    Pendiente|pendiente|pending|todo) printf 'Pendiente' ;;
+    En\ progreso|en-progreso|en_progreso|progress|in-progress|in_progress) printf 'En progreso' ;;
+    Bloqueado|bloqueado|blocked) printf 'Bloqueado' ;;
+    Parcial|parcial|partial) printf 'Parcial' ;;
+    Completado|completado|complete|completed|done) printf 'Completado' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+is_state() {
+  case "$(normalize_state "$1")" in
+    Pendiente|En\ progreso|Bloqueado|Parcial|Completado) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 infer_workstream_for_change() {
@@ -215,12 +315,16 @@ fi
 
 shift || true
 
-if [[ "$command" == '/change-status' && "$raw_command" =~ ^CHG- ]]; then
-  set -- "$raw_command" "$@"
+if [[ "$command" == '/change-status' ]]; then
+  if resolve_change_dir "$raw_command" >/dev/null 2>&1; then
+    set -- "$raw_command" "$@"
+  fi
 fi
 
-if [[ "$command" == '/check-vault' && "$raw_command" =~ ^WS- ]]; then
-  set -- "$raw_command" "$@"
+if [[ "$command" == '/check-vault' ]]; then
+  if resolve_workstream_id "$raw_command" >/dev/null 2>&1; then
+    set -- "$raw_command" "$@"
+  fi
 fi
 
 case "$command" in
@@ -246,17 +350,38 @@ case "$command" in
       printf 'Necesito al menos el change para abrir trabajo.\n' >&2
       printf 'Uso: /work-open <CHG-id> [WS-id] [mode]\n' >&2
       printf 'Alias: open CHG-031 [WS-web-app] [implementation]\n' >&2
+      printf 'También: open CHG-031 validation\n' >&2
       exit 1
     fi
-    change_id="$1"
-    workstream_id="${2:-}"
-    mode="${3:-implementation}"
+    change_ref="$1"
+    raw_arg_2="${2:-}"
+    raw_arg_3="${3:-}"
+    workstream_id=""
+    mode="implementation"
+
+    if ! change_dir="$(resolve_change_dir "$change_ref")"; then
+      printf 'No se encontró el change: %s\n' "$change_ref" >&2
+      exit 1
+    fi
+    change_id="$(canonical_change_id "$change_dir")"
+
+    if [[ -n "$raw_arg_2" ]]; then
+      if is_mode "$raw_arg_2"; then
+        mode="$(normalize_mode "$raw_arg_2")"
+      else
+        workstream_id="$(resolve_workstream_id "$raw_arg_2" || true)"
+        if [[ -z "$workstream_id" ]]; then
+          printf 'No se encontró el workstream: %s\n' "$raw_arg_2" >&2
+          printf 'Sugerencia: usa WS-xxx o un sufijo único como web-app.\n' >&2
+          exit 1
+        fi
+        if [[ -n "$raw_arg_3" ]]; then
+          mode="$(normalize_mode "$raw_arg_3")"
+        fi
+      fi
+    fi
 
     if [[ -z "$workstream_id" ]]; then
-      if ! change_dir="$(resolve_change_dir "$change_id")"; then
-        printf 'No se encontró el change: %s\n' "$change_id" >&2
-        exit 1
-      fi
       inferred_ws="$(infer_workstream_for_change "$change_dir" || true)"
       if [[ -n "$inferred_ws" ]]; then
         workstream_id="$inferred_ws"
@@ -268,19 +393,60 @@ case "$command" in
       fi
     fi
 
+    if ! is_mode "$mode"; then
+      printf 'Modo no reconocido: %s\n' "$mode" >&2
+      printf 'Usa implementation, closure, validation o documentation.\n' >&2
+      exit 1
+    fi
+
+    mode="$(normalize_mode "$mode")"
     bash scripts/handoff-open.sh "$change_id" "$workstream_id" "$mode" | human_summary
     ;;
 
   /work-close)
-    if [[ $# -lt 4 ]]; then
+    if [[ $# -lt 3 ]]; then
       printf 'Faltan datos para cerrar el handoff.\n' >&2
-      printf 'Uso: /work-close <CHG-id> <WS-id> <Estado> <summary> [--files ...]\n' >&2
+      printf 'Uso: /work-close <CHG-id> [WS-id] <Estado> <summary> [--files ...]\n' >&2
       printf 'Ejemplo: /work-close CHG-031 WS-web-app Parcial "Resumen 1|Resumen 2"\n' >&2
+      printf 'También: close CHG-031 Parcial "Resumen 1|Resumen 2"\n' >&2
       printf 'Alias: close CHG-031 WS-web-app Parcial "Resumen 1|Resumen 2"\n' >&2
       exit 1
     fi
-    change_id="$1"; workstream_id="$2"; state="$3"; summary="$4"
-    shift 4
+    change_ref="$1"
+    raw_arg_2="${2:-}"
+    raw_arg_3="${3:-}"
+    raw_arg_4="${4:-}"
+
+    if ! change_dir="$(resolve_change_dir "$change_ref")"; then
+      printf 'No se encontró el change: %s\n' "$change_ref" >&2
+      exit 1
+    fi
+    change_id="$(canonical_change_id "$change_dir")"
+
+    if is_state "$raw_arg_2"; then
+      workstream_id="$(infer_workstream_for_change "$change_dir" || true)"
+      state="$(normalize_state "$raw_arg_2")"
+      summary="$raw_arg_3"
+      shift 3
+    else
+      workstream_id="$(resolve_workstream_id "$raw_arg_2" || true)"
+      state="$(normalize_state "$raw_arg_3")"
+      summary="$raw_arg_4"
+      shift 4
+    fi
+
+    if [[ -z "$workstream_id" ]]; then
+      printf 'No pude determinar el workstream para cerrar el handoff.\n' >&2
+      printf 'Sugerencia: indica WS-xxx o asegúrate de que solo haya uno inferible.\n' >&2
+      exit 1
+    fi
+
+    if ! is_state "$state" || [[ -z "$summary" ]]; then
+      printf 'Faltan o son inválidos el estado y/o el resumen del cierre.\n' >&2
+      printf 'Uso: /work-close <CHG-id> [WS-id] <Estado> <summary> [--files ...]\n' >&2
+      exit 1
+    fi
+
     bash scripts/handoff-close.sh "$change_id" "$workstream_id" "$state" --summary "$summary" "$@" | human_summary
     ;;
 
@@ -291,14 +457,18 @@ case "$command" in
       printf 'Alias: sync CHG-031\n' >&2
       exit 1
     fi
-    bash scripts/chg-consolidate.sh "$1" | human_summary
+    if ! change_dir="$(resolve_change_dir "$1")"; then
+      printf 'No se encontró el change: %s\n' "$1" >&2
+      exit 1
+    fi
+    bash scripts/chg-consolidate.sh "$(canonical_change_id "$change_dir")" | human_summary
     ;;
 
   /change-status)
     if [[ $# -ne 1 ]]; then
       printf 'Debes indicar el change que quieres consultar.\n' >&2
       printf 'Uso: /change-status <CHG-id>\n' >&2
-      printf 'Alias: status CHG-031 o simplemente CHG-031\n' >&2
+      printf 'Alias: status CHG-031, status silent-session-renewal o simplemente CHG-031\n' >&2
       exit 1
     fi
     if ! change_dir="$(resolve_change_dir "$1")"; then
@@ -311,15 +481,17 @@ case "$command" in
   /check-vault)
     if [[ $# -eq 0 ]]; then
       bash scripts/vault-validate.sh | human_summary
-    elif [[ "$1" =~ ^CHG- ]]; then
-      bash scripts/vault-validate.sh change "$1" | human_summary
-    elif [[ "$1" =~ ^WS- ]]; then
-      bash scripts/vault-validate.sh workstream "$1" | human_summary
     else
-      printf 'No pude inferir si el target es change o workstream: %s\n' "$1" >&2
-      printf 'Sugerencia: usa CHG-xxx o WS-xxx explícitamente.\n' >&2
-      printf 'Alias: check CHG-031 o validate WS-web-app\n' >&2
-      exit 1
+      if change_dir="$(resolve_change_dir "$1" 2>/dev/null)"; then
+        bash scripts/vault-validate.sh change "$(canonical_change_id "$change_dir")" | human_summary
+      elif workstream_id="$(resolve_workstream_id "$1" 2>/dev/null)"; then
+        bash scripts/vault-validate.sh workstream "$workstream_id" | human_summary
+      else
+        printf 'No pude inferir si el target es change o workstream: %s\n' "$1" >&2
+        printf 'Sugerencia: usa CHG-xxx, WS-xxx o una referencia parcial única.\n' >&2
+        printf 'Alias: check CHG-031, validate WS-web-app o check web-app\n' >&2
+        exit 1
+      fi
     fi
     ;;
 
