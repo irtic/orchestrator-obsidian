@@ -23,6 +23,54 @@ Los scripts y comandos internos existen, pero NO deberían ser la interfaz princ
 
 ---
 
+## Atajos y aliases útiles
+
+La interfaz acepta variantes más humanas para reducir fricción.
+
+### Verbos cortos
+
+| Forma principal | Variantes útiles |
+|---|---|
+| `/change-new` | `new`, `create` |
+| `/work-open` | `open`, `start` |
+| `/work-close` | `close`, `finish` |
+| `/change-sync` | `sync`, `consolidate` |
+| `/change-status` | `status`, `show` |
+| `/check-vault` | `check`, `validate` |
+
+### Targets directos
+
+También se puede invocar intención sin escribir el comando completo:
+
+```text
+CHG-031
+WS-web-app
+silent-session-renewal
+web-app
+```
+
+Resolución esperada:
+
+| Input | Resolución |
+|---|---|
+| `CHG-031` | `/change-status CHG-031` |
+| `WS-web-app` | `/check-vault WS-web-app` |
+| `silent-session-renewal` | `/change-status CHG-031` si el slug es único |
+| `web-app` | `/check-vault WS-web-app` si el sufijo es único |
+
+### Defaults inteligentes
+
+- `open CHG-031` → intenta inferir el workstream más probable
+- `open CHG-031 validation` → interpreta `validation` como modo, aunque no se indique workstream
+- `close CHG-031 Parcial "..."` → intenta inferir workstream si solo hay uno razonable
+- `check silent-session-renewal` → valida el change si la referencia parcial es única
+
+### Regla
+
+La interfaz debe inferir primero y pedir precisión solo cuando exista ambigüedad real.
+
+---
+
 ## `/change-new`
 
 ### Significado
@@ -61,6 +109,12 @@ O con modo explícito:
 /work-open CHG-040 WS-api-core validation
 ```
 
+O en forma corta:
+
+```text
+open CHG-040 validation
+```
+
 ### Qué hace internamente
 - localiza el change
 - localiza la nota hija
@@ -80,6 +134,12 @@ Terminé esta parte y quiero dejar el resultado registrado.
 ### Ejemplo
 ```text
 /work-close CHG-040 WS-web-app Parcial
+```
+
+O si el workstream puede inferirse:
+
+```text
+close CHG-040 Parcial "Se integró consumo del endpoint"
 ```
 
 ### Qué hace internamente
@@ -123,6 +183,13 @@ Quiero ver cómo va este change.
 /change-status CHG-040
 ```
 
+También:
+
+```text
+status token-rotation
+CHG-040
+```
+
 ### Qué debería mostrar
 - estado por workstream
 - riesgos abiertos
@@ -148,6 +215,12 @@ Quiero revisar la salud del sistema documental.
 ### Ejemplo por change
 ```text
 /check-vault CHG-040
+```
+
+### Ejemplo por referencia corta
+```text
+check token-rotation
+check web-app
 ```
 
 ### Qué hace internamente

@@ -22,6 +22,20 @@ La capa interna resuelve parámetros, ejecuta scripts y devuelve una respuesta h
 
 ---
 
+## Normalizaciones que hace la fachada
+
+Antes de invocar scripts internos, `workstream-coordinator` puede resolver y normalizar:
+
+- aliases de comandos (`open`, `close`, `status`, `check`, `sync`, `new`)
+- references parciales de changes (`silent-session-renewal`)
+- references parciales de workstreams (`web-app`)
+- modos abreviados (`impl`, `review`, `docs`)
+- estados abreviados o en minúscula (`parcial`, `done`, `blocked`)
+
+La regla es simple: la interfaz humana acepta inputs flexibles, pero la capa interna siempre recibe IDs canónicos.
+
+---
+
 ## `/change-new`
 
 ### Intención humana
@@ -65,6 +79,19 @@ Quiero preparar la próxima sesión para un workstream.
 ### Resolución esperada
 Si no se indica modo, usar `implementation` por defecto.
 
+También aceptar:
+
+```text
+open CHG-040 validation
+open token-rotation web-app review
+```
+
+Resolución adicional:
+- si el segundo argumento parece modo, inferir workstream
+- si el segundo argumento parece workstream, usarlo
+- si el change entra como slug parcial único, convertirlo a `CHG-xxx`
+- si el workstream entra como sufijo único, convertirlo a `WS-xxx`
+
 ### Acción interna
 ```bash
 bash scripts/handoff-open.sh <change-id> <workstream-id> <mode>
@@ -95,6 +122,18 @@ Si faltan detalles, el agente debe pedir solo:
 - riesgos
 - pendientes
 - evidencia
+
+También aceptar:
+
+```text
+close CHG-040 Parcial "Resumen 1|Resumen 2"
+close token-rotation web-app parcial "Resumen 1|Resumen 2"
+```
+
+Resolución adicional:
+- si el segundo argumento parece estado, intentar inferir workstream
+- normalizar estados humanos a valores válidos del vault
+- preservar datos existentes cuando no se pasen flags opcionales
 
 ### Acción interna
 ```bash
@@ -140,6 +179,13 @@ Quiero ver cómo va este change.
 /change-status CHG-040
 ```
 
+También aceptar:
+
+```text
+status token-rotation
+CHG-040
+```
+
 ### Acción interna sugerida
 - leer el change maestro
 - opcionalmente llamar `vault-validate.sh change <change-id>`
@@ -169,6 +215,8 @@ Quiero revisar la salud del vault.
 | sin target | `all` |
 | `CHG-*` | `change` |
 | `WS-*` | `workstream` |
+| slug parcial único | `change` |
+| sufijo único de workstream | `workstream` |
 
 ### Acción interna
 ```bash
