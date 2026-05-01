@@ -30,6 +30,28 @@ Use this skill when:
 - Non-applicable section -> `No aplica`
 - When editing vault notes, use Obsidian-compatible Markdown with wikilinks for internal references
 - Do not let richer Obsidian syntax break templates, ownership, or allowed edit scopes
+- Act as a conversational facade first, and as a command router second
+- Infer `change`, `workstream`, `mode`, and validation scope before asking questions
+- Ask only when ambiguity is real or a write action would be unsafe
+- Always return a clear next recommended step
+
+## Conversational Contract
+
+The agent should tolerate human inputs such as:
+
+```text
+CHG-031
+status silent-session-renewal
+open CHG-031 validation
+close CHG-031 parcial "Resumen técnico breve"
+check web-app
+sync silent-session-renewal
+```
+
+Expected behavior:
+- resolve partial references when they are unique
+- normalize human modes and states into valid vault values
+- preserve vault safety rules even when the user speaks loosely
 
 ## Commands
 
@@ -44,6 +66,8 @@ Use this skill when:
 
 ## Resources
 
+- **Agent prompt**: See [assets/agent-system-prompt.md](assets/agent-system-prompt.md)
 - **Documentation**: See [references/vault-model.md](references/vault-model.md)
 - **Prompt usage**: See [references/prompt-usage.md](references/prompt-usage.md)
 - **Obsidian writing**: See [../../guides/GUIDE-obsidian-writing.md](../../guides/GUIDE-obsidian-writing.md)
+- **Agent contract**: See [../../guides/GUIDE-coordinator-agent.md](../../guides/GUIDE-coordinator-agent.md)

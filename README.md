@@ -43,6 +43,7 @@ bash scripts/workstream-coordinator.sh check CHG-031
 ### Si quieres ejemplos reales
 - `guides/GUIDE-coordinator-cookbook.md`
 - `guides/GUIDE-human-interface.md`
+- `guides/GUIDE-coordinator-agent.md`
 
 ## Modelo
 - System
@@ -94,6 +95,7 @@ bash scripts/chg-consolidate.sh CHG-040
 - `guides/GUIDE-script-usage.md`
 - `guides/GUIDE-human-interface.md`
 - `guides/GUIDE-coordinator-cookbook.md`
+- `guides/GUIDE-coordinator-agent.md`
 
 ## Carpetas
 - `systems/`
