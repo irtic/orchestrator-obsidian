@@ -172,6 +172,7 @@ fi
 python3 - "$note_file" "$state" "$summary" "$files" "$decisions" "$risks" "$blockers" "$pending_for_others" "$evidence" <<'PY'
 from pathlib import Path
 import sys
+import re
 
 note_path = Path(sys.argv[1])
 state, summary, files, decisions, risks, blockers, pending, evidence = sys.argv[2:]
@@ -182,6 +183,21 @@ def bullets(raw: str, default: str) -> str:
         return f"- {default}"
     return "\n".join(f"- {item}" for item in items)
 
+def extract_section(text: str, heading: str):
+    pattern = rf'^### {re.escape(heading)}$\n(.*?)(?=^### |\Z)'
+    match = re.search(pattern, text, re.M | re.S)
+    if not match:
+        return None
+    body = match.group(1).strip()
+    return body if body else None
+
+def merge_section(raw: str, existing, default: str) -> str:
+    if raw.strip():
+        return bullets(raw, default)
+    if existing:
+        return existing
+    return f"- {default}"
+
 text = note_path.read_text()
 marker = "## Implementación\n"
 idx = text.find(marker)
@@ -189,6 +205,15 @@ if idx == -1:
     raise SystemExit("No se encontró la sección ## Implementación")
 
 prefix = text[:idx]
+existing_impl = text[idx:]
+
+files_block = merge_section(files, extract_section(existing_impl, 'Archivos modificados'), 'No aplica')
+decisions_block = merge_section(decisions, extract_section(existing_impl, 'Decisiones locales'), 'No aplica')
+risks_block = merge_section(risks, extract_section(existing_impl, 'Riesgos'), 'No aplica')
+blockers_block = merge_section(blockers, extract_section(existing_impl, 'Dependencias / bloqueos'), 'No aplica')
+pending_block = merge_section(pending, extract_section(existing_impl, 'Pendientes para otros workstreams'), 'No aplica')
+evidence_block = merge_section(evidence, extract_section(existing_impl, 'Evidencia'), 'Pendiente')
+
 new_impl = f'''## Implementación
 > OWNER: {note_path.stem.split('.', 1)[1]}
 > MODE: replace-only
@@ -200,22 +225,22 @@ new_impl = f'''## Implementación
 {bullets(summary, 'Pendiente')}
 
 ### Archivos modificados
-{bullets(files, 'No aplica')}
+{files_block}
 
 ### Decisiones locales
-{bullets(decisions, 'No aplica')}
+{decisions_block}
 
 ### Riesgos
-{bullets(risks, 'No aplica')}
+{risks_block}
 
 ### Dependencias / bloqueos
-{bullets(blockers, 'No aplica')}
+{blockers_block}
 
 ### Pendientes para otros workstreams
-{bullets(pending, 'No aplica')}
+{pending_block}
 
 ### Evidencia
-{bullets(evidence, 'Pendiente')}
+{evidence_block}
 '''
 
 note_path.write_text(prefix + new_impl)
