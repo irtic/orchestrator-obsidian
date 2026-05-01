@@ -2,6 +2,48 @@
 
 Vault documental-operativo para coordinar cambios transversales entre múltiples repositorios.
 
+## Empieza aquí en 60 segundos
+
+### Qué es
+Un vault para coordinar trabajo transversal por `systems`, `changes` y `workstreams`, sin mezclar contexto entre repositorios.
+
+### Qué puedes hacer rápido
+- ver el estado actual de un change
+- abrir una sesión de trabajo para un workstream
+- cerrar la sesión dejando evidencia
+- consolidar el estado global
+- validar la salud del vault
+
+### Comandos mínimos
+
+```bash
+make validate
+bash scripts/workstream-coordinator.sh CHG-031
+bash scripts/workstream-coordinator.sh open CHG-031
+bash scripts/workstream-coordinator.sh check CHG-031
+```
+
+### Flujo rápido
+1. consultar el change
+2. abrir trabajo
+3. cerrar sesión
+4. consolidar
+5. validar
+
+Ejemplo:
+
+```bash
+bash scripts/workstream-coordinator.sh CHG-031
+bash scripts/workstream-coordinator.sh open CHG-031
+bash scripts/workstream-coordinator.sh close CHG-031 parcial "Resumen técnico breve"
+bash scripts/workstream-coordinator.sh sync CHG-031
+bash scripts/workstream-coordinator.sh check CHG-031
+```
+
+### Si quieres ejemplos reales
+- `guides/GUIDE-coordinator-cookbook.md`
+- `guides/GUIDE-human-interface.md`
+
 ## Modelo
 - System
 - Change
