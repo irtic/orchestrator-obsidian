@@ -50,6 +50,8 @@ bash scripts/chg-consolidate.sh CHG-040
 - `guides/GUIDE-session-prompts.md`
 - `guides/GUIDE-agent-commands.md`
 - `guides/GUIDE-script-usage.md`
+- `guides/GUIDE-human-interface.md`
+- `guides/GUIDE-coordinator-cookbook.md`
 
 ## Carpetas
 - `systems/`
